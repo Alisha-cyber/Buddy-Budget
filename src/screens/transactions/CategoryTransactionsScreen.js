@@ -1,94 +1,65 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   SafeAreaView,
 } from "react-native";
 
-import { useAuth } from "../../hooks/useAuth";
-import { getTransactions } from "../../services/transactionService";
-
 export default function CategoryTransactionsScreen({ route }) {
-  const { category } = route.params;
-  const { user } = useAuth();
+  const { category, monthIndex, year } = route.params || {};
 
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const categoryName = category?.name || "Category";
 
-  useEffect(() => {
-    loadTransactions();
-  }, []);
+  const transactions = useMemo(() => {
+    const items = Array.isArray(category?.items) ? category.items : [];
 
-  const loadTransactions = async () => {
-    try {
-      const data = await getTransactions({
-        userId: user._id,
-        category,
-      });
+    return items.filter((item) => {
+      if (!item?.transactionDate) return false;
 
-      setTransactions(data.transactions || []);
-    } catch (e) {
-      console.log(e);
-    }
+      const txDate = new Date(item.transactionDate);
 
-    setLoading(false);
-  };
+      return (
+        txDate.getMonth() === monthIndex &&
+        txDate.getFullYear() === year
+      );
+    });
+  }, [category, monthIndex, year]);
 
-  const renderTransaction = ({ item }) => (
-    <View style={styles.transactionCard}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.note}>{item.note || "Transaction"}</Text>
-
+  const renderItem = ({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.rowTop}>
+        <Text style={styles.amount}>${Number(item?.amount || 0).toFixed(2)}</Text>
         <Text style={styles.date}>
-          {new Date(item.transactionDate).toDateString()}
+          {new Date(item.transactionDate).toLocaleDateString()}
         </Text>
       </View>
 
-      <Text style={styles.amount}>${item.amount}</Text>
+      <Text style={styles.note}>
+        {item?.note?.trim() ? item.note : "No note"}
+      </Text>
     </View>
   );
-
-  if (loading) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#FF4FA3" />
-      </View>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* HEADER CARD */}
+        <Text style={styles.heading}>{categoryName}</Text>
+        <Text style={styles.subheading}>
+          {transactions.length}{" "}
+          {transactions.length === 1 ? "transaction" : "transactions"}
+        </Text>
 
-        <View style={styles.headerCard}>
-          <Text style={styles.title}>{category}</Text>
-
-          <Text style={styles.subtitle}>
-            {transactions.length} transactions
-          </Text>
-        </View>
-
-        {/* LIST */}
-
-        {transactions.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              No transactions in this category
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={transactions}
-            keyExtractor={(item) => item._id}
-            renderItem={renderTransaction}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 40 }}
-          />
-        )}
+        <FlatList
+          data={transactions}
+          keyExtractor={(item, index) => item?._id || `${categoryName}-${index}`}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 20 }}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No transactions found.</Text>
+          }
+        />
       </View>
     </SafeAreaView>
   );
@@ -99,76 +70,49 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FDEFF5",
   },
-
   container: {
     flex: 1,
     padding: 16,
   },
-
-  headerCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#F6CDE2",
+  heading: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111827",
   },
-
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#1F2937",
-  },
-
-  subtitle: {
-    fontSize: 13,
+  subheading: {
     marginTop: 4,
-    color: "#9CA3AF",
+    fontSize: 13,
+    color: "#6B7280",
   },
-
-  transactionCard: {
-    backgroundColor: "#FFFFFF",
+  card: {
+    backgroundColor: "#FFF7FA",
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#F6CDE2",
+    borderColor: "#F3DEE7",
   },
-
-  note: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#374151",
+  rowTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
-
-  date: {
-    fontSize: 11,
-    marginTop: 2,
-    color: "#9CA3AF",
-  },
-
   amount: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: "#FF4F87",
   },
-
-  loader: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  empty: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  emptyText: {
-    fontSize: 15,
+  date: {
+    fontSize: 12,
     color: "#6B7280",
+  },
+  note: {
+    fontSize: 13,
+    color: "#374151",
+  },
+  emptyText: {
+    marginTop: 20,
+    textAlign: "center",
+    color: "#9CA3AF",
   },
 });

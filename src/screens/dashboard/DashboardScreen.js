@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useAuth } from "../../hooks/useAuth";
@@ -29,11 +29,13 @@ export default function DashboardScreen({ navigation }) {
   const year = new Date().getFullYear();
   const month = new Date().getMonth() + 1;
 
-  useEffect(() => {
-    if (user?._id) {
-      loadBudget();
-    }
-  }, [user]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?._id) {
+        loadBudget();
+      }
+    }, [user?._id])
+  );
 
   const loadBudget = async () => {
     try {
@@ -159,9 +161,7 @@ export default function DashboardScreen({ navigation }) {
 
                           <Text style={styles.legendPercent}>{percent}%</Text>
 
-                          <Text style={styles.legendAmount}>
-                            ${item.value}
-                          </Text>
+                          <Text style={styles.legendAmount}>${item.value}</Text>
                         </View>
                       );
                     })}

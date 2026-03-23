@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,147 +6,105 @@ import {
   SafeAreaView,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import {
-  Ionicons,
-  MaterialCommunityIcons,
-  FontAwesome5,
-  AntDesign,
-  Feather,
-} from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../hooks/useAuth";
+import { getMonthlyBudget } from "../../services/budgetService";
 
-const MonthlyBreakdownScreen = ({ navigation }) => {
-  const months = [
-    "January 2026",
-    "February 2026",
-    "March 2026",
-    "April 2026",
-    "May 2026",
-    "June 2026",
-  ];
+const COLORS = ["#E48383", "#F2B50F", "#8E62D9", "#5AB98F", "#F1A356"];
 
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(0);
+export default function MonthlyBreakdownScreen({ navigation }) {
+  const { user } = useAuth();
 
-  const breakdownData = useMemo(
-    () => [
-      {
-        id: 1,
-        title: "Food & Dining",
-        transactions: 24,
-        amount: 856.42,
-        percentage: 24.8,
-        iconBg: "#FFE9BF",
-        iconColor: "#D99A00",
-        icon: (
-          <MaterialCommunityIcons
-            name="silverware-fork-knife"
-            size={18}
-            color="#D99A00"
-          />
-        ),
-      },
-      {
-        id: 2,
-        title: "Shopping",
-        transactions: 18,
-        amount: 652.9,
-        percentage: 18.9,
-        iconBg: "#F6DDFF",
-        iconColor: "#C14BFF",
-        icon: <Ionicons name="bag-handle-outline" size={18} color="#C14BFF" />,
-      },
-      {
-        id: 3,
-        title: "Transport",
-        transactions: 31,
-        amount: 487.35,
-        percentage: 14.1,
-        iconBg: "#DBF6E4",
-        iconColor: "#22A45D",
-        icon: <Ionicons name="car-sport-outline" size={18} color="#22A45D" />,
-      },
-      {
-        id: 4,
-        title: "Housing / Rent",
-        transactions: 1,
-        amount: 950.0,
-        percentage: 27.5,
-        iconBg: "#FFE0E7",
-        iconColor: "#FF5C8A",
-        icon: <Feather name="home" size={18} color="#FF5C8A" />,
-      },
-      {
-        id: 5,
-        title: "Entertainment",
-        transactions: 12,
-        amount: 234.6,
-        percentage: 6.8,
-        iconBg: "#FFDCEC",
-        iconColor: "#F03E93",
-        icon: (
-          <MaterialCommunityIcons
-            name="movie-open-outline"
-            size={18}
-            color="#F03E93"
-          />
-        ),
-      },
-      {
-        id: 6,
-        title: "Health",
-        transactions: 5,
-        amount: 125.8,
-        percentage: 3.6,
-        iconBg: "#FFE5E5",
-        iconColor: "#FF5B5B",
-        icon: <AntDesign name="hearto" size={17} color="#FF5B5B" />,
-      },
-      {
-        id: 7,
-        title: "Subscriptions",
-        transactions: 7,
-        amount: 89.99,
-        percentage: 2.6,
-        iconBg: "#DDEBFF",
-        iconColor: "#377DFF",
-        icon: (
-          <MaterialCommunityIcons
-            name="credit-card-outline"
-            size={18}
-            color="#377DFF"
-          />
-        ),
-      },
-      {
-        id: 8,
-        title: "Education",
-        transactions: 3,
-        amount: 59.72,
-        percentage: 1.7,
-        iconBg: "#E9E3FF",
-        iconColor: "#7A5AF8",
-        icon: (
-          <Ionicons name="school-outline" size={18} color="#7A5AF8" />
-        ),
-      },
-    ],
-    []
+  const [loading, setLoading] = useState(true);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(
+    new Date().getMonth()
   );
+  const [months, setMonths] = useState([]);
+  const [budgetData, setBudgetData] = useState(null);
+
+  const year = new Date().getFullYear();
+
+  // Generate past 12 months dynamically
+  useEffect(() => {
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
+    const pastMonths = [];
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      pastMonths.push(`${monthNames[date.getMonth()]} ${date.getFullYear()}`);
+    }
+
+    setMonths(pastMonths.reverse());
+  }, []);
+
+  // Load budget data for the selected month
+  const loadBudget = async (monthIndex) => {
+    try {
+      setLoading(true);
+      const selectedMonth = monthIndex + 1; // JS months are 0-indexed
+      const data = await getMonthlyBudget(user._id, year, selectedMonth);
+      setBudgetData(data);
+    } catch (err) {
+      console.log("Error fetching monthly budget", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch whenever the month changes
+  useEffect(() => {
+    if (user?._id) loadBudget(currentMonthIndex);
+  }, [currentMonthIndex, user?._id]);
 
   const goPrevMonth = () => {
-    if (currentMonthIndex > 0) {
-      setCurrentMonthIndex(currentMonthIndex - 1);
-    }
+    if (currentMonthIndex > 0) setCurrentMonthIndex(currentMonthIndex - 1);
   };
 
   const goNextMonth = () => {
-    if (currentMonthIndex < months.length - 1) {
+    if (currentMonthIndex < months.length - 1)
       setCurrentMonthIndex(currentMonthIndex + 1);
-    }
   };
 
-  const currentMonth = months[currentMonthIndex];
-  const totalAmount = breakdownData.reduce((sum, item) => sum + item.amount, 0);
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color="#FF4FA3" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const breakdownData =
+    budgetData?.categories?.map((cat, index) => ({
+      id: cat._id,
+      title: cat.name,
+      transactions: cat.transactions?.length || 0,
+      amount: cat.amount,
+      percentage: budgetData.totalBudget
+        ? ((cat.amount / budgetData.totalBudget) * 100).toFixed(1)
+        : 0,
+      color: COLORS[index % COLORS.length],
+    })) || [];
+
+  const totalAmount = budgetData?.spentAmount || 0;
+  const currentMonth = months[currentMonthIndex] || "";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -162,7 +120,6 @@ const MonthlyBreakdownScreen = ({ navigation }) => {
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Monthly Breakdown</Text>
-
           <View style={styles.headerSpacer} />
         </View>
 
@@ -183,9 +140,7 @@ const MonthlyBreakdownScreen = ({ navigation }) => {
             <View style={styles.monthTextWrap}>
               <Text style={styles.monthText}>{currentMonth}</Text>
               <Text style={styles.totalLabel}>Total:</Text>
-              <Text style={styles.totalAmount}>
-                ${totalAmount.toFixed(2)}
-              </Text>
+              <Text style={styles.totalAmount}>${totalAmount.toFixed(2)}</Text>
             </View>
 
             <TouchableOpacity
@@ -203,14 +158,8 @@ const MonthlyBreakdownScreen = ({ navigation }) => {
               <View style={styles.rowTop}>
                 <View style={styles.leftSection}>
                   <View
-                    style={[
-                      styles.iconCircle,
-                      { backgroundColor: item.iconBg },
-                    ]}
-                  >
-                    {item.icon}
-                  </View>
-
+                    style={[styles.iconCircle, { backgroundColor: item.color }]}
+                  />
                   <View style={styles.textWrap}>
                     <Text style={styles.categoryTitle}>{item.title}</Text>
                     <Text style={styles.transactionText}>
@@ -242,19 +191,12 @@ const MonthlyBreakdownScreen = ({ navigation }) => {
       </View>
     </SafeAreaView>
   );
-};
-
-export default MonthlyBreakdownScreen;
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FDEFF5",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#FDEFF5",
-  },
+  safeArea: { flex: 1, backgroundColor: "#FDEFF5" },
+  container: { flex: 1, backgroundColor: "#FDEFF5" },
+  loader: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -273,19 +215,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F3DCE7",
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#28313D",
-  },
-  headerSpacer: {
-    width: 30,
-    height: 30,
-  },
-  scrollContent: {
-    paddingHorizontal: 14,
-    paddingBottom: 28,
-  },
+  headerTitle: { fontSize: 20, fontWeight: "700", color: "#28313D" },
+  headerSpacer: { width: 30, height: 30 },
+  scrollContent: { paddingHorizontal: 14, paddingBottom: 28 },
   monthCard: {
     backgroundColor: "#FFF8FB",
     borderRadius: 16,
@@ -306,21 +238,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  monthTextWrap: {
-    flex: 1,
-    alignItems: "center",
-  },
+  monthTextWrap: { flex: 1, alignItems: "center" },
   monthText: {
     fontSize: 14,
     fontWeight: "700",
     color: "#374151",
     marginBottom: 2,
   },
-  totalLabel: {
-    fontSize: 10,
-    color: "#B3A1AA",
-    fontWeight: "600",
-  },
+  totalLabel: { fontSize: 10, color: "#B3A1AA", fontWeight: "600" },
   totalAmount: {
     fontSize: 11,
     color: "#EC4899",
@@ -341,11 +266,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  leftSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
+  leftSection: { flexDirection: "row", alignItems: "center", flex: 1 },
   iconCircle: {
     width: 36,
     height: 36,
@@ -354,35 +275,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 10,
   },
-  textWrap: {
-    flex: 1,
-  },
+  textWrap: { flex: 1 },
   categoryTitle: {
     fontSize: 14,
     fontWeight: "700",
     color: "#374151",
     marginBottom: 2,
   },
-  transactionText: {
-    fontSize: 11,
-    color: "#9CA3AF",
-    fontWeight: "500",
-  },
-  rightSection: {
-    alignItems: "flex-end",
-    marginLeft: 10,
-  },
+  transactionText: { fontSize: 11, color: "#9CA3AF", fontWeight: "500" },
+  rightSection: { alignItems: "flex-end", marginLeft: 10 },
   amountText: {
     fontSize: 14,
     fontWeight: "700",
     color: "#FF4F87",
     marginBottom: 3,
   },
-  percentText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#A1A1AA",
-  },
+  percentText: { fontSize: 11, fontWeight: "700", color: "#A1A1AA" },
   progressTrack: {
     width: "100%",
     height: 6,

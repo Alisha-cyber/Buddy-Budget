@@ -17,8 +17,7 @@ export default function LoginScreen({ navigation }) {
       const data = await loginUser(email, password);
       login(data);
     } catch (err) {
-      Alert.alert("Login Failed");
-      Alert.alert("Login Failed", err.message);
+      Alert.alert("Invalid Username/Password", err.message);
     }
   };
 

@@ -1,7 +1,7 @@
 import axios from "axios";
 
-//const apiURL = "https://buddybudget-6j2e.onrender.com";
-const apiURL = "http:localhost:5050";
+const apiURL = "https://buddybudget-6j2e.onrender.com";
+// const apiURL = "http:localhost:5050";
 
 const api = axios.create({
   baseURL: apiURL, // change

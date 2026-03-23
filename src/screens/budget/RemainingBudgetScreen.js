@@ -26,10 +26,8 @@ export default function RemainingBudgetScreen({ navigation }) {
 
   const [monthIndex, setMonthIndex] = useState(today.getMonth());
   const [year, setYear] = useState(today.getFullYear());
-
   const [summary, setSummary] = useState(null);
   const [budget, setBudget] = useState("");
-
   const [loading, setLoading] = useState(true);
 
   const months = [
@@ -53,7 +51,7 @@ export default function RemainingBudgetScreen({ navigation }) {
     if (user?._id) {
       loadBudget();
     }
-  }, [monthIndex, year]);
+  }, [monthIndex, year, user?._id]);
 
   const loadBudget = async () => {
     try {
@@ -62,7 +60,6 @@ export default function RemainingBudgetScreen({ navigation }) {
       const data = await getMonthlyBudget(user._id, year, month);
 
       setSummary(data);
-
       setBudget(data?.totalBudget?.toString() || "");
     } catch (err) {
       console.log(err);
@@ -119,38 +116,26 @@ export default function RemainingBudgetScreen({ navigation }) {
   const radius = 60;
   const strokeWidth = 18;
   const circumference = 2 * Math.PI * radius;
-
   const progress = totalBudget ? spentAmount / totalBudget : 0;
-
   const spentStroke = circumference * progress;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* HEADER */}
-        {/* <View style={styles.breakdownSection}>
-          <Text style={styles.breakdownHeading}>Monthly Breakdown</Text>
-
-          {summary?.categories?.length === 0 ? (
-            <Text style={{ color: "#9CA3AF" }}>No spending yet this month</Text>
-          ) : (
-            summary.categories.map((cat, index) => (
-              <BudgetCard key={index} category={cat} />
-            ))
-          )}
-        </View> */}
-
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              }
+            }}
+          >
             <Ionicons name="chevron-back" size={24} />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>Budget</Text>
-
           <View style={{ width: 24 }} />
         </View>
-
-        {/* MONTH NAVIGATION */}
 
         <View style={styles.monthCard}>
           <TouchableOpacity onPress={prevMonth} style={styles.monthArrow}>
@@ -165,8 +150,6 @@ export default function RemainingBudgetScreen({ navigation }) {
             <Ionicons name="chevron-forward" size={16} color="#EC4899" />
           </TouchableOpacity>
         </View>
-
-        {/* BUDGET INPUT */}
 
         <View style={styles.inputCard}>
           <Text style={styles.inputLabel}>Monthly Budget</Text>
@@ -183,8 +166,6 @@ export default function RemainingBudgetScreen({ navigation }) {
             <Text style={styles.saveText}>Save Budget</Text>
           </TouchableOpacity>
         </View>
-
-        {/* PIE CHART */}
 
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Budget Overview</Text>
@@ -219,8 +200,6 @@ export default function RemainingBudgetScreen({ navigation }) {
             </View>
           </View>
 
-          {/* LEGEND */}
-
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
               <View style={[styles.dot, { backgroundColor: "#FF6A8B" }]} />
@@ -233,6 +212,7 @@ export default function RemainingBudgetScreen({ navigation }) {
             </View>
           </View>
         </View>
+
         <View style={styles.breakdownSection}>
           <Text style={styles.breakdownHeading}>Monthly Breakdown</Text>
 
@@ -241,6 +221,9 @@ export default function RemainingBudgetScreen({ navigation }) {
               key={index}
               category={cat}
               navigation={navigation}
+              month={month}
+              monthIndex={monthIndex}
+              year={year}
             />
           ))}
         </View>
@@ -252,7 +235,6 @@ export default function RemainingBudgetScreen({ navigation }) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#FDEFF5" },
   container: { padding: 20 },
-
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
 
   header: {

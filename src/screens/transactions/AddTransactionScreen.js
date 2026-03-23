@@ -144,7 +144,7 @@ export default function AddTransactionScreen({ navigation }) {
         </View>
 
         {/* Type Toggle */}
-        <View style={styles.toggleWrap}>
+        {/* <View style={styles.toggleWrap}>
           {["Income", "Expense"].map((t) => (
             <TouchableOpacity
               key={t}
@@ -162,7 +162,7 @@ export default function AddTransactionScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </View> */}
 
         {/* Category */}
         <Text style={styles.sectionTitle}>Category</Text>
