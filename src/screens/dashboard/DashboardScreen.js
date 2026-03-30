@@ -94,7 +94,7 @@ export default function DashboardScreen({ navigation }) {
             </Text>
 
             <TouchableOpacity
-              onPress={() => navigation.navigate("RemainingBudget")}
+              onPress={() => navigation.navigate("Budget")}
               activeOpacity={0.9}
             >
               <LinearGradient
@@ -190,7 +190,7 @@ export default function DashboardScreen({ navigation }) {
 
           <TouchableOpacity
             style={{ flex: 1 }}
-            onPress={() => navigation.navigate("RemainingBudget")}
+            onPress={() => navigation.navigate("Budget")}
             activeOpacity={0.9}
           >
             <LinearGradient

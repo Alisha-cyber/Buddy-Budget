@@ -59,7 +59,19 @@ export default function RemainingBudgetScreen({ navigation }) {
 
       const data = await getMonthlyBudget(user._id, year, month);
 
-      setSummary(data);
+      const categories =
+        data?.categories?.map((cat) => ({
+          ...cat,
+          name: cat.name || cat.category || cat.categoryId,
+          transactions: Array.isArray(cat.transactions)
+            ? cat.transactions.length
+            : cat.transactions || 0,
+        })) || [];
+
+      setSummary({
+        ...data,
+        categories,
+      });
       setBudget(data?.totalBudget?.toString() || "");
     } catch (err) {
       console.log(err);
@@ -216,16 +228,20 @@ export default function RemainingBudgetScreen({ navigation }) {
         <View style={styles.breakdownSection}>
           <Text style={styles.breakdownHeading}>Monthly Breakdown</Text>
 
-          {summary?.categories?.map((cat, index) => (
-            <BudgetCard
-              key={index}
-              category={cat}
-              navigation={navigation}
-              month={month}
-              monthIndex={monthIndex}
-              year={year}
-            />
-          ))}
+          {summary?.categories?.length > 0 ? (
+            summary.categories.map((cat, index) => (
+              <BudgetCard
+                key={index}
+                category={cat}
+                navigation={navigation}
+                month={month}
+                monthIndex={monthIndex}
+                year={year}
+              />
+            ))
+          ) : (
+            <Text style={styles.noData}>No spending yet this month</Text>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

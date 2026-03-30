@@ -16,16 +16,14 @@ export default function BudgetCard({
 }) {
   const progress = useRef(new Animated.Value(0)).current;
 
-  const {
-    name = "Category",
-    amount = 0,
-    transactions = 0,
-    percentage = 0,
-  } = category || {};
+  const name = category?.name || category?.category || "Category";
+  const amount = category?.amount || 0;
+  const transactions = category?.transactions || 0;
+  const percentage = Number(category?.percentage || 0);
 
   useEffect(() => {
     Animated.timing(progress, {
-      toValue: Number(percentage) || 0,
+      toValue: percentage,
       duration: 700,
       useNativeDriver: false,
     }).start();
@@ -50,7 +48,7 @@ export default function BudgetCard({
           })
         }
       >
-        <View style={{ flex: 1 }}>
+        <View style={styles.left}>
           <Text style={styles.title}>{name}</Text>
           <Text style={styles.transactions}>
             {transactions} {transactions === 1 ? "transaction" : "transactions"}
@@ -79,17 +77,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F3DEE7",
   },
-  row: { flexDirection: "row", alignItems: "center" },
-  title: { fontSize: 14, fontWeight: "700", color: "#374151" },
-  transactions: { fontSize: 11, color: "#9CA3AF" },
-  right: { alignItems: "flex-end" },
-  amount: { fontSize: 14, fontWeight: "700", color: "#FF4F87" },
-  percent: { fontSize: 11, color: "#9CA3AF" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  left: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  transactions: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 2,
+  },
+  right: {
+    alignItems: "flex-end",
+    marginLeft: 10,
+  },
+  amount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FF4F87",
+  },
+  percent: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    marginTop: 2,
+  },
   progressTrack: {
     height: 6,
     backgroundColor: "#F9D9E6",
     borderRadius: 999,
     marginTop: 10,
+    overflow: "hidden",
   },
   progressFill: {
     height: 6,

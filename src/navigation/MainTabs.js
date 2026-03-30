@@ -9,10 +9,10 @@ import RemainingBudgetScreen from "../screens/budget/RemainingBudgetScreen";
 import AddTransactionScreen from "../screens/transactions/AddTransactionScreen";
 import ProfileScreen from "../screens/profile/ProfileScreen";
 import CategoryTransactionsScreen from "../screens/transactions/CategoryTransactionsScreen";
-import { COLORS } from "../constants/theme";
 import AboutUsScreen from "../screens/profile/AboutUsScreen";
 import ChangePasswordScreen from "../screens/profile/ChangePasswordScreen";
 import EditProfileScreen from "../screens/profile/EditProfileScreen";
+import { COLORS } from "../constants/theme";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -40,26 +40,8 @@ function DashboardStack() {
       <Stack.Screen
         name="MonthlyBreakdown"
         component={MonthlyBreakdownScreen}
-      />
-
-      <Stack.Screen
-        name="RemainingBudget"
-        component={RemainingBudgetScreen}
-        options={{ headerShown: false }}
-      />
-
-      <Stack.Screen
-        name="CategoryTransactions"
-        component={CategoryTransactionsScreen}
         options={{
-          headerShown: true,
-          title: "",
-          headerBackTitleVisible: false,
-          headerStyle: {
-            backgroundColor: "#FFF7FA",
-          },
-          headerTintColor: "#FF4F87",
-          headerShadowVisible: false,
+          headerShown: false,
         }}
       />
     </Stack.Navigator>
@@ -79,7 +61,7 @@ function BudgetStack() {
         name="CategoryTransactions"
         component={CategoryTransactionsScreen}
         options={{
-          headerShown: true,
+          headerShown: false,
           title: "",
           headerBackTitleVisible: false,
           headerStyle: {
@@ -114,7 +96,7 @@ export default function MainTabs() {
           fontWeight: "700",
         },
         tabBarIcon: ({ color, size }) => {
-          let iconName;
+          let iconName = "ellipse-outline";
 
           if (route.name === "Dashboard") {
             iconName = "home-outline";
