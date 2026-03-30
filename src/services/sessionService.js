@@ -25,7 +25,7 @@ export async function getSession() {
     }
 
     return parsed.user || null;
-  } catch {
+  } catch (err) {
     await clearSession();
     return null;
   }

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  View,
   Text,
   StyleSheet,
   Alert,
@@ -16,6 +15,7 @@ import CustomButton from "../../components/CustomButton";
 import { loginUser } from "../../services/authService";
 import { useAuth } from "../../hooks/useAuth";
 import { signInWithGoogle } from "../../services/googleAuthService";
+import { loginWithGoogleToken } from "../../services/googleBackendAuthService";
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -36,10 +36,7 @@ export default function LoginScreen({ navigation }) {
       const data = await loginUser(email.trim(), password);
       await login(data);
     } catch (err) {
-      Alert.alert(
-        "Invalid Username/Password",
-        err?.message || "Login failed."
-      );
+      Alert.alert("Invalid Username/Password", err?.message || "Login failed.");
     } finally {
       setLoading(false);
     }
@@ -50,19 +47,9 @@ export default function LoginScreen({ navigation }) {
       setGoogleLoading(true);
 
       const result = await signInWithGoogle();
+      if (!result?.idToken) return;
 
-      if (!result?.user) {
-        setGoogleLoading(false);
-        return;
-      }
-
-      const appUser = {
-        name: result.user.name || "",
-        email: result.user.email || "",
-        profilePicture: result.user.photo || "",
-        authProvider: "google",
-      };
-
+      const appUser = await loginWithGoogleToken(result.idToken);
       await login(appUser);
     } catch (err) {
       Alert.alert("Google Sign-In Failed", err?.message || "Please try again.");

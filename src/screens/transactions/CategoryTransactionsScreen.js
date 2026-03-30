@@ -85,7 +85,15 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
   ];
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={styles.card}
+      onPress={() =>
+        navigation.navigate("EditTransaction", {
+          transaction: item,
+        })
+      }
+    >
       <View style={styles.rowTop}>
         <Text style={styles.amount}>
           ${Number(item?.amount || 0).toFixed(2)}
@@ -98,7 +106,12 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
       <Text style={styles.note}>
         {item?.note?.trim() ? item.note : "No note"}
       </Text>
-    </View>
+
+      <View style={styles.editRow}>
+        <Ionicons name="create-outline" size={14} color="#FF4F87" />
+        <Text style={styles.editText}>Tap to edit</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -345,6 +358,19 @@ const styles = StyleSheet.create({
   note: {
     fontSize: 13,
     color: "#374151",
+  },
+
+  editRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+
+  editText: {
+    marginLeft: 4,
+    fontSize: 12,
+    color: "#FF4F87",
+    fontWeight: "600",
   },
 
   emptyText: {

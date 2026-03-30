@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useMemo, useState } from "react";
 import { getSession, saveSession, clearSession } from "../services/sessionService";
+import { signOutGoogle } from "../services/googleAuthService";
 
 export const AuthContext = createContext(null);
 
@@ -8,7 +9,7 @@ export function AuthProvider({ children }) {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    const restore = async () => {
+    const restoreSession = async () => {
       try {
         const savedUser = await getSession();
         if (savedUser) {
@@ -19,7 +20,7 @@ export function AuthProvider({ children }) {
       }
     };
 
-    restore();
+    restoreSession();
   }, []);
 
   const login = async (userData) => {
@@ -30,6 +31,10 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     setUser(null);
     await clearSession();
+
+    try {
+      await signOutGoogle();
+    } catch (err) {}
   };
 
   const value = useMemo(

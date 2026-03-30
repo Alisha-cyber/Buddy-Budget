@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import {
   createTransaction,
-  updateTransaction,
-  deleteTransaction,
+  updateTransaction as updateTransactionService,
+  deleteTransaction as deleteTransactionService,
   getTransactions,
 } from "../services/transactionService";
 
@@ -10,8 +10,9 @@ const TransactionContext = createContext(null);
 
 export const useTransactions = () => {
   const ctx = useContext(TransactionContext);
-  if (!ctx)
+  if (!ctx) {
     throw new Error("useTransactions must be used inside TransactionProvider");
+  }
   return ctx;
 };
 
@@ -30,6 +31,7 @@ const monthKey = (date) => {
 const formatMonthTitle = (key) => {
   const [y, m] = key.split("-");
   const d = new Date(Number(y), Number(m) - 1, 1);
+
   return d.toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
@@ -46,20 +48,25 @@ export function TransactionProvider({ children }) {
   const fetchTransactions = async (params) => {
     try {
       const data = await getTransactions(params);
-  
-      // ALWAYS ensure array
-      if (Array.isArray(data.transactions)) {
+
+      if (Array.isArray(data?.transactions)) {
         setTransactions(data.transactions);
-      } else {
-        setTransactions([]);
+        return data.transactions;
       }
-  
+
+      if (Array.isArray(data?.data?.transactions)) {
+        setTransactions(data.data.transactions);
+        return data.data.transactions;
+      }
+
+      setTransactions([]);
+      return [];
     } catch (err) {
       console.log("FETCH ERROR:", err);
       setTransactions([]);
+      throw err;
     }
   };
-  
 
   /* CREATE */
 
@@ -67,9 +74,15 @@ export function TransactionProvider({ children }) {
     try {
       const data = await createTransaction(payload);
 
-      const newTx = data.transaction || data;
+      const newTx =
+        data?.transaction ||
+        data?.data?.transaction ||
+        data?.data ||
+        data;
 
-      setTransactions((prev) => [newTx, ...prev]);
+      if (newTx) {
+        setTransactions((prev) => [newTx, ...prev]);
+      }
 
       return newTx;
     } catch (err) {
@@ -82,11 +95,18 @@ export function TransactionProvider({ children }) {
 
   const editTransaction = async (id, payload) => {
     try {
-      const data = await updateTransaction(id, payload);
-      const updated = data.transaction || data;
+      const data = await updateTransactionService(id, payload);
+
+      const updated =
+        data?.transaction ||
+        data?.data?.transaction ||
+        data?.data ||
+        data;
 
       setTransactions((prev) =>
-        prev.map((item) => (item._id === id || item.id === id ? updated : item))
+        prev.map((item) =>
+          item._id === id || item.id === id ? updated : item
+        )
       );
 
       return updated;
@@ -100,11 +120,13 @@ export function TransactionProvider({ children }) {
 
   const removeTransaction = async (id) => {
     try {
-      await deleteTransaction(id);
+      const data = await deleteTransactionService(id);
 
       setTransactions((prev) =>
         prev.filter((item) => item._id !== id && item.id !== id)
       );
+
+      return data;
     } catch (err) {
       console.log("DELETE ERROR:", err);
       throw err;
@@ -178,8 +200,15 @@ export function TransactionProvider({ children }) {
         transactions,
         fetchTransactions,
         addTransaction,
+
+        // original names
         editTransaction,
         removeTransaction,
+
+        // alias names for easier screen usage
+        updateTransaction: editTransaction,
+        deleteTransaction: removeTransaction,
+
         months,
         getMonthlySummary,
       }}

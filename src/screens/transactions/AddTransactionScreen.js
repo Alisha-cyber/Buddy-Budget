@@ -8,13 +8,14 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../constants/theme";
 import { useTransactions } from "../../context/TransactionContext";
 import { useAuth } from "../../hooks/useAuth";
 import ScreenWrapper from "../../components/ScreenWrapper";
+import { getMonthlyBudget } from "../../services/budgetService";
 
 const CATEGORY_PRESETS = [
   { key: "Food", icon: "restaurant-outline", accent: "#FFD36A" },
@@ -36,6 +37,7 @@ const MORE_CATEGORIES = [
 
 export default function AddTransactionScreen({ navigation }) {
   const { addTransaction } = useTransactions();
+  const { user } = useAuth();
 
   const [amount, setAmount] = useState("");
   const [type, setType] = useState("Expense");
@@ -43,7 +45,10 @@ export default function AddTransactionScreen({ navigation }) {
   const [notes, setNotes] = useState("");
   const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const resetForm = () => {
     setAmount("");
@@ -61,33 +66,39 @@ export default function AddTransactionScreen({ navigation }) {
 
   const onSave = async () => {
     if (!amount || Number(amount) <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid amount.");
+      setErrorMessage("Please enter a valid amount.");
       return;
     }
 
     try {
       setLoading(true);
 
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+
+      const budgetData = await getMonthlyBudget(user._id, year, month);
+      const totalBudget = Number(budgetData?.totalBudget || 0);
+
+      if (totalBudget <= 0) {
+        setLoading(false);
+        setShowBudgetModal(true);
+        return;
+      }
+
       await addTransaction({
-        userId: user._id, // from auth context
-        categoryId: selectedCategory, // TEMP until you create category route
+        userId: user._id,
+        categoryId: selectedCategory,
         amount: Number(amount),
-        transactionType: type.toLowerCase(), // "expense" or "income"
+        transactionType: type.toLowerCase(),
         note: notes,
-        transactionDate: new Date().toISOString().split("T")[0], // YYYY-MM-DD
+        transactionDate: new Date().toISOString().split("T")[0],
       });
 
-      Alert.alert("Success 🎉", "Transaction added successfully!", [
-        {
-          text: "OK",
-          onPress: () => {
-            resetForm(); // reset page
-            navigation.goBack(); // optional: go back
-          },
-        },
-      ]);
+      resetForm();
+      setShowSuccessModal(true);
     } catch (err) {
-      Alert.alert("Error", "Failed to save transaction.");
+      setErrorMessage("Failed to save transaction.");
     } finally {
       setLoading(false);
     }
@@ -95,175 +106,233 @@ export default function AddTransactionScreen({ navigation }) {
 
   return (
     <ScreenWrapper>
-
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* Header */}
-        <View style={styles.topRow}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="chevron-back" size={18} color={COLORS.text} />
-          </TouchableOpacity>
-
-          <Text style={styles.headerTitle}>Add Transaction</Text>
-          <View style={{ width: 36 }} />
-        </View>
-
-        {/* Amount */}
-        <View style={styles.amountCard}>
-          <Text style={styles.amountLabel}>Amount</Text>
-          <Text style={styles.amountBig}>{formattedAmount}</Text>
-
-          <View style={styles.amountInputRow}>
-            <Text style={styles.dollar}>$</Text>
-            <TextInput
-              value={amount}
-              onChangeText={(t) => {
-                const cleaned = t.replace(/[^0-9.]/g, "");
-                const parts = cleaned.split(".");
-                const safe =
-                  parts.length <= 2
-                    ? cleaned
-                    : `${parts[0]}.${parts.slice(1).join("")}`;
-                setAmount(safe);
-              }}
-              placeholder="0.00"
-              keyboardType="decimal-pad"
-              placeholderTextColor={"rgba(0,0,0,0.25)"}
-              style={styles.amountInput}
-            />
-          </View>
-        </View>
-
-        {/* Type Toggle */}
-        {/* <View style={styles.toggleWrap}>
-          {["Income", "Expense"].map((t) => (
-            <TouchableOpacity
-              key={t}
-              style={[styles.toggleBtn, type === t && styles.toggleActive]}
-              onPress={() => setType(t)}
-              activeOpacity={0.9}
-            >
-              <Text
-                style={[
-                  styles.toggleText,
-                  type === t && styles.toggleTextActive,
-                ]}
-              >
-                {t}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View> */}
-
-        {/* Category */}
-        <Text style={styles.sectionTitle}>Category</Text>
-
-        <View style={styles.chipsRow}>
-          {CATEGORY_PRESETS.map((c) => {
-            const isActive = selectedCategory === c.key;
-            return (
-              <TouchableOpacity
-                key={c.key}
-                activeOpacity={0.9}
-                onPress={() => {
-                  setSelectedCategory(c.key);
-                  setShowMore(false);
-                }}
-                style={[styles.chip, isActive && styles.chipActive]}
-              >
-                <View style={[styles.chipIcon, { backgroundColor: c.accent }]}>
-                  <Ionicons name={c.icon} size={16} color="#222" />
-                </View>
-                <Text style={styles.chipText}>{c.key}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Dropdown */}
-        <TouchableOpacity
-          onPress={() => setShowMore((p) => !p)}
-          style={styles.dropdown}
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.dropdownLeft}>
-            <Ionicons
-              name="pricetag-outline"
-              size={16}
-              color={COLORS.primaryDark}
-            />
-            <Text style={styles.dropdownText}>{selectedCategory}</Text>
+          <View style={styles.topRow}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="chevron-back" size={18} color={COLORS.text} />
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle}>Add Transaction</Text>
+            <View style={{ width: 36 }} />
           </View>
 
-          <Ionicons
-            name={showMore ? "chevron-up" : "chevron-down"}
-            size={18}
-            color={COLORS.muted}
-          />
-        </TouchableOpacity>
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={16}
+                color="#B42318"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
 
-        {showMore && (
-          <View style={styles.moreWrap}>
-            {MORE_CATEGORIES.map((name) => {
-              const isActive = selectedCategory === name;
+          <View style={styles.amountCard}>
+            <Text style={styles.amountLabel}>Amount</Text>
+            <Text style={styles.amountBig}>{formattedAmount}</Text>
+
+            <View style={styles.amountInputRow}>
+              <Text style={styles.dollar}>$</Text>
+              <TextInput
+                value={amount}
+                onChangeText={(t) => {
+                  setErrorMessage("");
+                  const cleaned = t.replace(/[^0-9.]/g, "");
+                  const parts = cleaned.split(".");
+                  const safe =
+                    parts.length <= 2
+                      ? cleaned
+                      : `${parts[0]}.${parts.slice(1).join("")}`;
+                  setAmount(safe);
+                }}
+                placeholder="0.00"
+                keyboardType="decimal-pad"
+                placeholderTextColor={"rgba(0,0,0,0.25)"}
+                style={styles.amountInput}
+              />
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>Category</Text>
+
+          <View style={styles.chipsRow}>
+            {CATEGORY_PRESETS.map((c) => {
+              const isActive = selectedCategory === c.key;
               return (
                 <TouchableOpacity
-                  key={name}
-                  style={[styles.moreItem, isActive && styles.moreItemActive]}
+                  key={c.key}
+                  activeOpacity={0.9}
                   onPress={() => {
-                    setSelectedCategory(name);
+                    setSelectedCategory(c.key);
                     setShowMore(false);
                   }}
+                  style={[styles.chip, isActive && styles.chipActive]}
                 >
-                  <Text
-                    style={[styles.moreText, isActive && styles.moreTextActive]}
-                  >
-                    {name}
-                  </Text>
+                  <View style={[styles.chipIcon, { backgroundColor: c.accent }]}>
+                    <Ionicons name={c.icon} size={16} color="#222" />
+                  </View>
+                  <Text style={styles.chipText}>{c.key}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-        )}
 
-        {/* Notes */}
-        <Text style={styles.sectionTitle}>Notes</Text>
-        <View style={styles.notesBox}>
-          <TextInput
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Add a note..."
-            placeholderTextColor={"rgba(0,0,0,0.25)"}
-            style={styles.notesInput}
-            multiline
-          />
-        </View>
+          <TouchableOpacity
+            onPress={() => setShowMore((p) => !p)}
+            style={styles.dropdown}
+          >
+            <View style={styles.dropdownLeft}>
+              <Ionicons
+                name="pricetag-outline"
+                size={16}
+                color={COLORS.primaryDark}
+              />
+              <Text style={styles.dropdownText}>{selectedCategory}</Text>
+            </View>
 
-        {/* Save */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={[styles.saveBtn, loading && { opacity: 0.6 }]}
-          onPress={onSave}
-          disabled={loading}
+            <Ionicons
+              name={showMore ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={COLORS.muted}
+            />
+          </TouchableOpacity>
+
+          {showMore && (
+            <View style={styles.moreWrap}>
+              {MORE_CATEGORIES.map((name) => {
+                const isActive = selectedCategory === name;
+                return (
+                  <TouchableOpacity
+                    key={name}
+                    style={[styles.moreItem, isActive && styles.moreItemActive]}
+                    onPress={() => {
+                      setSelectedCategory(name);
+                      setShowMore(false);
+                    }}
+                  >
+                    <Text
+                      style={[styles.moreText, isActive && styles.moreTextActive]}
+                    >
+                      {name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <Text style={styles.sectionTitle}>Notes</Text>
+          <View style={styles.notesBox}>
+            <TextInput
+              value={notes}
+              onChangeText={(t) => {
+                setErrorMessage("");
+                setNotes(t);
+              }}
+              placeholder="Add a note..."
+              placeholderTextColor={"rgba(0,0,0,0.25)"}
+              style={styles.notesInput}
+              multiline
+            />
+          </View>
+
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={[styles.saveBtn, loading && { opacity: 0.6 }]}
+            onPress={onSave}
+            disabled={loading}
+          >
+            <Text style={styles.saveText}>
+              {loading ? "Saving..." : "Save Transaction"}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={{ height: 26 }} />
+        </ScrollView>
+
+        <Modal
+          visible={showBudgetModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowBudgetModal(false)}
         >
-          <Text style={styles.saveText}>
-            {loading ? "Saving..." : "Save Transaction"}
-          </Text>
-        </TouchableOpacity>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalIconWrap}>
+                <Ionicons name="wallet-outline" size={28} color="#DB2777" />
+              </View>
 
-        <View style={{ height: 26 }} />
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <Text style={styles.modalTitle}>Set Budget First</Text>
+              <Text style={styles.modalSubtitle}>
+                Please set your monthly budget before adding a transaction. This
+                helps BuddyBudget track your spending properly.
+              </Text>
+
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowBudgetModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>Not now</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={() => {
+                    setShowBudgetModal(false);
+                    navigation.navigate("Budget");
+                  }}
+                >
+                  <Text style={styles.modalPrimaryText}>Set Budget</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showSuccessModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowSuccessModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={[styles.modalIconWrap, styles.successIconWrap]}>
+                <Ionicons name="checkmark" size={28} color="#16A34A" />
+              </View>
+
+              <Text style={styles.modalTitle}>Transaction Saved</Text>
+              <Text style={styles.modalSubtitle}>
+                Your transaction was added successfully.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.modalPrimaryBtnSingle}
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  navigation.goBack();
+                }}
+              >
+                <Text style={styles.modalPrimaryText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </KeyboardAvoidingView>
     </ScreenWrapper>
-
   );
 }
 
@@ -287,6 +356,24 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 16, fontWeight: "900", color: COLORS.text },
 
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3F2",
+    borderWidth: 1,
+    borderColor: "#FECDCA",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: "#B42318",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+  },
+
   amountCard: {
     backgroundColor: "rgba(255,255,255,0.75)",
     borderRadius: 22,
@@ -295,7 +382,11 @@ const styles = StyleSheet.create({
   },
   amountLabel: { fontWeight: "900", fontSize: 12 },
   amountBig: { fontSize: 34, fontWeight: "900", marginTop: 8 },
-  amountInputRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  amountInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
   dollar: { fontSize: 16, fontWeight: "900", marginRight: 6 },
   amountInput: {
     flex: 1,
@@ -306,23 +397,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.65)",
   },
-
-  toggleWrap: {
-    flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.65)",
-    borderRadius: 18,
-    padding: 4,
-    marginBottom: 14,
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  toggleActive: { backgroundColor: COLORS.primary },
-  toggleText: { fontWeight: "900", color: COLORS.muted },
-  toggleTextActive: { color: "#fff" },
 
   sectionTitle: { fontWeight: "900", marginBottom: 8 },
 
@@ -387,4 +461,85 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: "#fff", fontWeight: "900" },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(31, 41, 55, 0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 22,
+  },
+  modalCard: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 26,
+    padding: 22,
+    alignItems: "center",
+  },
+  modalIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FCE7F3",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  successIconWrap: {
+    backgroundColor: "#DCFCE7",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1F2937",
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  modalButtonRow: {
+    flexDirection: "row",
+    marginTop: 20,
+    width: "100%",
+  },
+  modalCancelBtn: {
+    flex: 1,
+    marginRight: 8,
+    backgroundColor: "#FCECF3",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#F5C8D8",
+  },
+  modalCancelText: {
+    fontWeight: "700",
+    color: "#D94C8A",
+    fontSize: 15,
+  },
+  modalPrimaryBtn: {
+    flex: 1,
+    marginLeft: 8,
+    backgroundColor: "#F8C9DA",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  modalPrimaryBtnSingle: {
+    marginTop: 20,
+    width: "100%",
+    backgroundColor: "#F8C9DA",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  modalPrimaryText: {
+    fontWeight: "700",
+    color: "#253046",
+    fontSize: 15,
+  },
 });

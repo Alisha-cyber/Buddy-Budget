@@ -13,7 +13,7 @@ import AboutUsScreen from "../screens/profile/AboutUsScreen";
 import ChangePasswordScreen from "../screens/profile/ChangePasswordScreen";
 import EditProfileScreen from "../screens/profile/EditProfileScreen";
 import { COLORS } from "../constants/theme";
-
+import EditTransactionScreen from "../screens/transactions/EditTransactionScreen";
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
@@ -70,6 +70,11 @@ function BudgetStack() {
           headerTintColor: "#FF4F87",
           headerShadowVisible: false,
         }}
+      />
+      <Stack.Screen
+        name="EditTransaction"
+        component={EditTransactionScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

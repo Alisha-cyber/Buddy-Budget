@@ -4,8 +4,10 @@ import {
   } from "@react-native-google-signin/google-signin";
   
   GoogleSignin.configure({
-    webClientId: "YOUR_GOOGLE_WEB_CLIENT_ID",
-    iosClientId: "YOUR_GOOGLE_IOS_CLIENT_ID",
+    webClientId:
+      "389501539554-fv0irv4fbeoq2mf10v147ag2033mkmhu.apps.googleusercontent.com",
+    iosClientId:
+      "389501539554-utqshcoe0omsoaf7eunceo9lkheadopp.apps.googleusercontent.com",
   });
   
   export async function signInWithGoogle() {
@@ -16,10 +18,7 @@ import {
       const user = result?.data?.user || result?.user || null;
       const idToken = result?.data?.idToken || result?.idToken || null;
   
-      return {
-        user,
-        idToken,
-      };
+      return { user, idToken };
     } catch (error) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         return null;

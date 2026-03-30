@@ -53,7 +53,9 @@ const PasswordInput = ({
 };
 
 const ChangePasswordScreen = ({ navigation }) => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
+
+  const hasPassword = !!user?.hasPassword;
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -66,9 +68,16 @@ const ChangePasswordScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
 
   const handleChangePassword = async () => {
-    if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert("Missing Fields", "Please fill in all password fields.");
-      return;
+    if (hasPassword) {
+      if (!oldPassword || !newPassword || !confirmPassword) {
+        Alert.alert("Missing Fields", "Please fill in all password fields.");
+        return;
+      }
+    } else {
+      if (!newPassword || !confirmPassword) {
+        Alert.alert("Missing Fields", "Please fill in all password fields.");
+        return;
+      }
     }
 
     if (newPassword.length < 6) {
@@ -84,23 +93,37 @@ const ChangePasswordScreen = ({ navigation }) => {
     try {
       setLoading(true);
 
-      await changePassword(user._id, {
-        oldPassword,
-        newPassword,
-      });
+      const payload = hasPassword
+        ? { oldPassword, newPassword }
+        : { newPassword, mode: "set" };
 
-      setLoading(false);
+      const response = await changePassword(user._id, payload);
 
-      Alert.alert("Success", "Password updated successfully!", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      if (response?.data?.user) {
+        await login(response.data.user);
+      }
+
+      Alert.alert(
+        "Success",
+        hasPassword
+          ? "Password updated successfully!"
+          : "Password set successfully!",
+        [{ text: "OK", onPress: () => navigation.goBack() }]
+      );
 
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
+      Alert.alert(
+        "Error",
+        error?.response?.data?.message ||
+          (hasPassword
+            ? "Failed to update password."
+            : "Failed to set password.")
+      );
+    } finally {
       setLoading(false);
-      Alert.alert("Error", "Failed to update password.");
     }
   };
 
@@ -108,8 +131,6 @@ const ChangePasswordScreen = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
-          {/* Header */}
-
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
@@ -118,7 +139,9 @@ const ChangePasswordScreen = ({ navigation }) => {
               <Ionicons name="chevron-back" size={22} color="#5B4B55" />
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>Change Password</Text>
+            <Text style={styles.headerTitle}>
+              {hasPassword ? "Change Password" : "Set Password"}
+            </Text>
 
             <View style={{ width: 34 }} />
           </View>
@@ -129,26 +152,30 @@ const ChangePasswordScreen = ({ navigation }) => {
             contentContainerStyle={styles.content}
           >
             <View style={styles.card}>
-              {/* Lock icon */}
-
               <View style={styles.lockCircle}>
                 <Ionicons name="lock-closed" size={28} color="#fff" />
               </View>
 
-              <Text style={styles.title}>Update Your Password</Text>
-
-              <Text style={styles.subtitle}>
-                Keep your BuddyBudget account secure with a strong password.
+              <Text style={styles.title}>
+                {hasPassword ? "Update Your Password" : "Create a Password"}
               </Text>
 
-              <PasswordInput
-                label="Old Password"
-                value={oldPassword}
-                onChangeText={setOldPassword}
-                placeholder="Enter old password"
-                secureTextEntry={!showOldPassword}
-                toggleSecure={() => setShowOldPassword(!showOldPassword)}
-              />
+              <Text style={styles.subtitle}>
+                {hasPassword
+                  ? "Keep your BuddyBudget account secure with a strong password."
+                  : "Set a password so you can also log in with email and password later."}
+              </Text>
+
+              {hasPassword && (
+                <PasswordInput
+                  label="Old Password"
+                  value={oldPassword}
+                  onChangeText={setOldPassword}
+                  placeholder="Enter old password"
+                  secureTextEntry={!showOldPassword}
+                  toggleSecure={() => setShowOldPassword(!showOldPassword)}
+                />
+              )}
 
               <PasswordInput
                 label="New Password"
@@ -170,8 +197,6 @@ const ChangePasswordScreen = ({ navigation }) => {
                 }
               />
 
-              {/* Save button */}
-
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={handleChangePassword}
@@ -180,11 +205,11 @@ const ChangePasswordScreen = ({ navigation }) => {
                 {loading ? (
                   <ActivityIndicator color="#253046" />
                 ) : (
-                  <Text style={styles.saveButtonText}>Save Password</Text>
+                  <Text style={styles.saveButtonText}>
+                    {hasPassword ? "Save Password" : "Set Password"}
+                  </Text>
                 )}
               </TouchableOpacity>
-
-              {/* Cancel */}
 
               <TouchableOpacity
                 style={styles.cancelButton}

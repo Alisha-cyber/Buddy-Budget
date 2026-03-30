@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Linking } from "react-native";
 import {
+  Alert,
+  Linking,
   View,
   Text,
   StyleSheet,
@@ -8,8 +9,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Image,
 } from "react-native";
-
 import { Ionicons, Feather, AntDesign } from "@expo/vector-icons";
 
 import { useAuth } from "../../hooks/useAuth";
@@ -27,20 +28,64 @@ const ProfileScreen = ({ navigation }) => {
   );
 
   const [currencyMenuVisible, setCurrencyMenuVisible] = useState(false);
-  const [currency, setCurrency] = useState(user.currency);
+  const [currency, setCurrency] = useState(user?.currency || "CAD");
+
+  const profileImageUri =
+    user?.profilePicture && user.profilePicture.trim() !== ""
+      ? user.profilePicture
+      : null;
+
+  const fallbackInitial =
+    user?.name?.trim()?.charAt(0)?.toUpperCase() ||
+    user?.email?.trim()?.charAt(0)?.toUpperCase() ||
+    "B";
 
   const openSupportEmail = async () => {
     const email = "support@buddybudget.com";
     const subject = "BuddyBudget Support";
+    const body = "Hi BuddyBudget team,\n\nI need help with:\n\n\nRegards,";
 
-    const url = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+    const mailtoUrl =
+      `mailto:${email}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`;
 
-    const supported = await Linking.canOpenURL(url);
+    try {
+      const supported = await Linking.canOpenURL(mailtoUrl);
 
-    if (supported) {
-      Linking.openURL(url);
-    } else {
-      Linking.openURL("https://mail.google.com");
+      if (supported) {
+        await Linking.openURL(mailtoUrl);
+        return;
+      }
+
+      Alert.alert(
+        "No Email App Found",
+        "We couldn't find an email app on this device. You can still contact support at support@buddybudget.com.",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Open Gmail",
+            onPress: async () => {
+              try {
+                await Linking.openURL("https://mail.google.com");
+              } catch {
+                Alert.alert(
+                  "Unable to Open",
+                  "Please email us manually at support@buddybudget.com."
+                );
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert(
+        "Something Went Wrong",
+        "Please email us manually at support@buddybudget.com."
+      );
     }
   };
 
@@ -50,12 +95,15 @@ const ProfileScreen = ({ navigation }) => {
         const profile = await getUserProfile(user._id);
         login(profile);
         setNotificationsEnabled(profile.notificationsEnabled);
+        setCurrency(profile.currency || "CAD");
       } catch (error) {
         console.log("Profile load error", error);
       }
     };
 
-    loadProfile();
+    if (user?._id) {
+      loadProfile();
+    }
   }, []);
 
   const handleToggleNotifications = async (value) => {
@@ -189,7 +237,6 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Profile</Text>
         </View>
@@ -198,18 +245,24 @@ const ProfileScreen = ({ navigation }) => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.avatarWrapper}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarFace}>◕‿◕</Text>
-              </View>
+              {profileImageUri ? (
+                <Image
+                  source={{ uri: profileImageUri }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarInitial}>{fallbackInitial}</Text>
+                </View>
+              )}
 
               <View style={styles.onlineDot} />
             </View>
 
-            <Text style={styles.userName}>{user.name}</Text>
-            <Text style={styles.userEmail}>{user.email}</Text>
+            <Text style={styles.userName}>{user?.name}</Text>
+            <Text style={styles.userEmail}>{user?.email}</Text>
 
             <TouchableOpacity
               style={styles.editButton}
@@ -222,17 +275,16 @@ const ProfileScreen = ({ navigation }) => {
               style={styles.changePasswordButton}
               onPress={() => navigation.navigate("ChangePassword")}
             >
-              <Text style={styles.changePasswordText}>Change Password</Text>
+              <Text style={styles.changePasswordText}>
+                {user?.hasPassword ? "Change Password" : "Set Password"}
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Settings */}
           <Text style={styles.sectionTitle}>Settings</Text>
 
           {settingsData.map(renderSettingItem)}
         </ScrollView>
-
-        {/* Currency Modal */}
 
         {currencyMenuVisible && (
           <View style={styles.modalOverlay}>
@@ -321,10 +373,18 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9C8DA",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
 
-  avatarFace: {
-    fontSize: 24,
+  avatarImage: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+  },
+
+  avatarInitial: {
+    fontSize: 28,
+    fontWeight: "800",
     color: "#FFFFFF",
   },
 
