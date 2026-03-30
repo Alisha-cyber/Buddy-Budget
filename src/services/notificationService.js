@@ -17,7 +17,8 @@ export async function requestNotificationPermissions() {
     return false;
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  const { status: existingStatus } =
+    await Notifications.getPermissionsAsync();
 
   let finalStatus = existingStatus;
 
@@ -79,7 +80,7 @@ export async function scheduleEveningReminder() {
 
 export async function setupBudgetReminders() {
   const granted = await requestNotificationPermissions();
-  console.log(granted);
+
   if (!granted) return false;
 
   await cancelAllBudgetNotifications();

@@ -1,21 +1,46 @@
-import React, { createContext, useState } from "react";
+import React, { createContext, useEffect, useMemo, useState } from "react";
+import { getSession, saveSession, clearSession } from "../services/sessionService";
 
-export const AuthContext = createContext();
+export const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  const login = (userData) => {
+  useEffect(() => {
+    const restore = async () => {
+      try {
+        const savedUser = await getSession();
+        if (savedUser) {
+          setUser(savedUser);
+        }
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    restore();
+  }, []);
+
+  const login = async (userData) => {
     setUser(userData);
+    await saveSession(userData);
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
+    await clearSession();
   };
 
-  return (
-    <AuthContext.Provider value={{ user, login, logout }}>
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo(
+    () => ({
+      user,
+      authLoading,
+      login,
+      logout,
+    }),
+    [user, authLoading]
   );
-};
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
