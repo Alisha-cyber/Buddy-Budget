@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "buddybudget_ui",
+    "name": "Buddy Budget",
     "slug": "buddybudget_ui",
     "version": "1.0.0",
+    "scheme": "buddybudget",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -14,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.buddybudget-ui",
+      "bundleIdentifier": "com.yourname.buddybudget",
       "infoPlist": {
         "CFBundleURLTypes": [
           {
@@ -22,7 +23,8 @@
               "com.googleusercontent.apps.389501539554-utqshcoe0omsoaf7eunceo9lkheadopp"
             ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,7 +33,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.buddybudgetui"
+      "package": "com.yourname.buddybudget"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,6 +46,11 @@
           "iosUrlScheme": "com.googleusercontent.apps.389501539554-utqshcoe0omsoaf7eunceo9lkheadopp"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ab273fb5-974a-43bf-93f4-bcd2b7877f36"
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,39 +9,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../constants/theme";
 import { useTransactions } from "../../context/TransactionContext";
+import { useCategories } from "../../context/CategoryContext";
 import { useAuth } from "../../hooks/useAuth";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { getMonthlyBudget } from "../../services/budgetService";
 
-const CATEGORY_PRESETS = [
-  { key: "Food", icon: "restaurant-outline", accent: "#FFD36A" },
-  { key: "Shopping", icon: "bag-handle-outline", accent: "#CDB7FF" },
-  { key: "Transport", icon: "car-outline", accent: "#B6F2D1" },
-  { key: "Housing", icon: "home-outline", accent: "#FFB7C9" },
-];
-
-const MORE_CATEGORIES = [
-  "Bills",
-  "Health",
-  "Entertainment",
-  "Education",
-  "Subscriptions",
-  "Travel",
-  "Gifts",
-  "Other",
-];
-
 export default function AddTransactionScreen({ navigation }) {
   const { addTransaction } = useTransactions();
+  const { categories, fetchCategories, addCategory } = useCategories();
   const { user } = useAuth();
 
   const [amount, setAmount] = useState("");
   const [type, setType] = useState("Expense");
-  const [selectedCategory, setSelectedCategory] = useState("Food");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [showMore, setShowMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -50,11 +35,39 @@ export default function AddTransactionScreen({ navigation }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryLoading, setCategoryLoading] = useState(false);
+
+  useEffect(() => {
+    if (user?._id) {
+      fetchCategories({
+        userId: user._id,
+        type: type.toLowerCase(),
+      });
+    }
+  }, [user?._id, type]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0].name);
+    }
+  }, [categories]);
+
+  const presetCategories = categories.slice(0, 4);
+  const moreCategories = categories.slice(4);
+
   const resetForm = () => {
     setAmount("");
     setType("Expense");
-    setSelectedCategory("Food");
+    setSelectedCategory("");
     setNotes("");
+    setShowMore(false);
+  };
+
+  const handleTypeChange = (newType) => {
+    setType(newType);
+    setSelectedCategory("");
     setShowMore(false);
   };
 
@@ -64,26 +77,55 @@ export default function AddTransactionScreen({ navigation }) {
     return `$${n.toFixed(2)}`;
   }, [amount]);
 
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    try {
+      setCategoryLoading(true);
+
+      const newCategory = await addCategory({
+        name: newCategoryName.trim(),
+        type: type.toLowerCase(),
+        userId: user._id,
+      });
+
+      setSelectedCategory(newCategory.name);
+      setNewCategoryName("");
+      setShowCategoryModal(false);
+    } catch (error) {
+      setErrorMessage(error?.response?.data?.message || "Failed to create category.");
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
+
   const onSave = async () => {
     if (!amount || Number(amount) <= 0) {
       setErrorMessage("Please enter a valid amount.");
       return;
     }
 
+    if (!selectedCategory) {
+      setErrorMessage("Please select a category.");
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const today = new Date();
-      const month = today.getMonth() + 1;
-      const year = today.getFullYear();
+      if (type === "Expense") {
+        const today = new Date();
+        const month = today.getMonth() + 1;
+        const year = today.getFullYear();
 
-      const budgetData = await getMonthlyBudget(user._id, year, month);
-      const totalBudget = Number(budgetData?.totalBudget || 0);
+        const budgetData = await getMonthlyBudget(user._id, year, month);
+        const totalBudget = Number(budgetData?.totalBudget || 0);
 
-      if (totalBudget <= 0) {
-        setLoading(false);
-        setShowBudgetModal(true);
-        return;
+        if (totalBudget <= 0) {
+          setLoading(false);
+          setShowBudgetModal(true);
+          return;
+        }
       }
 
       await addTransaction({
@@ -165,72 +207,104 @@ export default function AddTransactionScreen({ navigation }) {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Category</Text>
+          <View style={styles.toggleWrap}>
+            {["Income", "Expense"].map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.toggleBtn, type === t && styles.toggleActive]}
+                onPress={() => handleTypeChange(t)}
+                activeOpacity={0.9}
+              >
+                <Text
+                  style={[
+                    styles.toggleText,
+                    type === t && styles.toggleTextActive,
+                  ]}
+                >
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Category</Text>
+            <TouchableOpacity onPress={() => setShowCategoryModal(true)}>
+              <Text style={styles.addCategoryText}>+ Add Category</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.chipsRow}>
-            {CATEGORY_PRESETS.map((c) => {
-              const isActive = selectedCategory === c.key;
+            {presetCategories.map((c) => {
+              const isActive = selectedCategory === c.name;
               return (
                 <TouchableOpacity
-                  key={c.key}
+                  key={c._id}
                   activeOpacity={0.9}
                   onPress={() => {
-                    setSelectedCategory(c.key);
+                    setSelectedCategory(c.name);
                     setShowMore(false);
                   }}
                   style={[styles.chip, isActive && styles.chipActive]}
                 >
-                  <View style={[styles.chipIcon, { backgroundColor: c.accent }]}>
-                    <Ionicons name={c.icon} size={16} color="#222" />
-                  </View>
-                  <Text style={styles.chipText}>{c.key}</Text>
+                  <Text style={styles.chipText}>{c.name}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          <TouchableOpacity
-            onPress={() => setShowMore((p) => !p)}
-            style={styles.dropdown}
-          >
-            <View style={styles.dropdownLeft}>
-              <Ionicons
-                name="pricetag-outline"
-                size={16}
-                color={COLORS.primaryDark}
-              />
-              <Text style={styles.dropdownText}>{selectedCategory}</Text>
-            </View>
+          {moreCategories.length > 0 && (
+            <>
+              <TouchableOpacity
+                onPress={() => setShowMore((p) => !p)}
+                style={styles.dropdown}
+              >
+                <View style={styles.dropdownLeft}>
+                  <Ionicons
+                    name="pricetag-outline"
+                    size={16}
+                    color={COLORS.primaryDark}
+                  />
+                  <Text style={styles.dropdownText}>{selectedCategory || "Choose category"}</Text>
+                </View>
 
-            <Ionicons
-              name={showMore ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={COLORS.muted}
-            />
-          </TouchableOpacity>
+                <Ionicons
+                  name={showMore ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={COLORS.muted}
+                />
+              </TouchableOpacity>
 
-          {showMore && (
-            <View style={styles.moreWrap}>
-              {MORE_CATEGORIES.map((name) => {
-                const isActive = selectedCategory === name;
-                return (
-                  <TouchableOpacity
-                    key={name}
-                    style={[styles.moreItem, isActive && styles.moreItemActive]}
-                    onPress={() => {
-                      setSelectedCategory(name);
-                      setShowMore(false);
-                    }}
-                  >
-                    <Text
-                      style={[styles.moreText, isActive && styles.moreTextActive]}
-                    >
-                      {name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+              {showMore && (
+                <View style={styles.moreWrap}>
+                  {moreCategories.map((name) => {
+                    const isActive = selectedCategory === name.name;
+                    return (
+                      <TouchableOpacity
+                        key={name._id}
+                        style={[
+                          styles.moreItem,
+                          isActive && styles.moreItemActive,
+                        ]}
+                        onPress={() => {
+                          setSelectedCategory(name.name);
+                          setShowMore(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.moreText,
+                            isActive && styles.moreTextActive,
+                          ]}
+                        >
+                          {name.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
 
           <Text style={styles.sectionTitle}>Notes</Text>
@@ -262,6 +336,48 @@ export default function AddTransactionScreen({ navigation }) {
           <View style={{ height: 26 }} />
         </ScrollView>
 
+        <Modal visible={showCategoryModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Add Custom Category</Text>
+              <Text style={styles.modalSubtitle}>
+                Create a new {type.toLowerCase()} category.
+              </Text>
+
+              <TextInput
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="Enter category name"
+                style={styles.modalInput}
+              />
+
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => {
+                    setShowCategoryModal(false);
+                    setNewCategoryName("");
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={handleCreateCategory}
+                  disabled={categoryLoading}
+                >
+                  {categoryLoading ? (
+                    <ActivityIndicator color="#253046" />
+                  ) : (
+                    <Text style={styles.modalPrimaryText}>Add</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         <Modal
           visible={showBudgetModal}
           transparent
@@ -276,8 +392,7 @@ export default function AddTransactionScreen({ navigation }) {
 
               <Text style={styles.modalTitle}>Set Budget First</Text>
               <Text style={styles.modalSubtitle}>
-                Please set your monthly budget before adding a transaction. This
-                helps BuddyBudget track your spending properly.
+                Please set your monthly budget before adding an expense.
               </Text>
 
               <View style={styles.modalButtonRow}>
@@ -398,26 +513,46 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.65)",
   },
 
+  toggleWrap: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.65)",
+    borderRadius: 18,
+    padding: 4,
+    marginBottom: 14,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  toggleActive: { backgroundColor: COLORS.primary },
+  toggleText: { fontWeight: "900", color: COLORS.muted },
+  toggleTextActive: { color: "#fff" },
+
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   sectionTitle: { fontWeight: "900", marginBottom: 8 },
+  addCategoryText: {
+    fontWeight: "800",
+    color: COLORS.primary,
+    fontSize: 13,
+  },
 
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   chip: {
-    width: "47%",
+    minWidth: "47%",
     borderRadius: 18,
     padding: 12,
-    flexDirection: "row",
     alignItems: "center",
     marginBottom: 10,
+    backgroundColor: "rgba(255,255,255,0.75)",
   },
   chipActive: { borderWidth: 2, borderColor: COLORS.primary },
-  chipIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
   chipText: { fontWeight: "900" },
 
   dropdown: {
@@ -475,6 +610,16 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     padding: 22,
     alignItems: "center",
+  },
+  modalInput: {
+    width: "100%",
+    backgroundColor: "#FFF7FA",
+    borderWidth: 1,
+    borderColor: "#F4D5E2",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginTop: 16,
   },
   modalIconWrap: {
     width: 64,

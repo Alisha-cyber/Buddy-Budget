@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import BudgetCard from "../../components/BudgetCard";
 import Svg, { Circle } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
@@ -47,12 +48,6 @@ export default function RemainingBudgetScreen({ navigation }) {
 
   const month = monthIndex + 1;
 
-  useEffect(() => {
-    if (user?._id) {
-      loadBudget();
-    }
-  }, [monthIndex, year, user?._id]);
-
   const loadBudget = async () => {
     try {
       setLoading(true);
@@ -63,6 +58,7 @@ export default function RemainingBudgetScreen({ navigation }) {
         data?.categories?.map((cat) => ({
           ...cat,
           name: cat.name || cat.category || cat.categoryId,
+          transactionType: cat.transactionType || "expense",
           transactions: Array.isArray(cat.transactions)
             ? cat.transactions.length
             : cat.transactions || 0,
@@ -72,6 +68,7 @@ export default function RemainingBudgetScreen({ navigation }) {
         ...data,
         categories,
       });
+
       setBudget(data?.totalBudget?.toString() || "");
     } catch (err) {
       console.log(err);
@@ -79,6 +76,14 @@ export default function RemainingBudgetScreen({ navigation }) {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?._id) {
+        loadBudget();
+      }
+    }, [monthIndex, year, user?._id])
+  );
 
   const saveBudget = async () => {
     try {
@@ -89,7 +94,7 @@ export default function RemainingBudgetScreen({ navigation }) {
         totalBudget: Number(budget),
       });
 
-      loadBudget();
+      await loadBudget();
     } catch (err) {
       console.log(err);
     }
@@ -121,14 +126,27 @@ export default function RemainingBudgetScreen({ navigation }) {
     );
   }
 
-  const totalBudget = summary?.totalBudget || 0;
-  const spentAmount = summary?.spentAmount || 0;
-  const remainingAmount = summary?.remainingAmount || 0;
+  const totalBudget = Number(summary?.totalBudget || 0);
+  const spentAmount = Number(summary?.spentAmount || 0);
+
+  const incomeAmount =
+    Number(summary?.incomeAmount) ||
+    summary?.transactions
+      ?.filter((t) => t.transactionType === "income")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0) ||
+    0;
+
+  const monthlySaving = incomeAmount - spentAmount;
+  const isSavingPositive = monthlySaving >= 0;
+
+  const isOverBudget = spentAmount > totalBudget;
+  const remainingAmount = Math.max(totalBudget - spentAmount, 0);
+  const overBudgetAmount = isOverBudget ? spentAmount - totalBudget : 0;
 
   const radius = 60;
   const strokeWidth = 18;
   const circumference = 2 * Math.PI * radius;
-  const progress = totalBudget ? spentAmount / totalBudget : 0;
+  const progress = totalBudget ? Math.min(spentAmount / totalBudget, 1) : 0;
   const spentStroke = circumference * progress;
 
   return (
@@ -179,6 +197,29 @@ export default function RemainingBudgetScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
+        <View style={styles.incomeCard}>
+          <Text style={styles.incomeLabel}>Monthly Income</Text>
+          <Text style={styles.incomeAmount}>${incomeAmount}</Text>
+          <Text style={styles.incomeSubtext}>Total income for this month</Text>
+        </View>
+
+        <View style={styles.savingCard}>
+          <Text style={styles.savingLabel}>Monthly Saving</Text>
+          <Text
+            style={[
+              styles.savingAmount,
+              isSavingPositive ? styles.savingPositive : styles.savingNegative,
+            ]}
+          >
+            ${Math.abs(monthlySaving)}
+          </Text>
+          <Text style={styles.savingSubtext}>
+            {isSavingPositive
+              ? "Income left after spending"
+              : "You spent more than you earned"}
+          </Text>
+        </View>
+
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Budget Overview</Text>
 
@@ -197,24 +238,45 @@ export default function RemainingBudgetScreen({ navigation }) {
                 cx="90"
                 cy="90"
                 r={radius}
-                stroke="#FF6A8B"
+                stroke={isOverBudget ? "#DC2626" : "#FF6A8B"}
                 strokeWidth={strokeWidth}
                 fill="none"
                 strokeDasharray={`${spentStroke} ${circumference}`}
                 rotation="-90"
                 origin="90,90"
+                strokeLinecap="round"
               />
             </Svg>
 
             <View style={styles.chartCenter}>
-              <Text style={styles.chartLabel}>Remaining</Text>
-              <Text style={styles.chartAmount}>${remainingAmount}</Text>
+              <Text
+                style={[
+                  styles.chartLabel,
+                  isOverBudget && styles.overBudgetLabel,
+                ]}
+              >
+                {isOverBudget ? "Over Budget" : "Remaining"}
+              </Text>
+
+              <Text
+                style={[
+                  styles.chartAmount,
+                  isOverBudget && styles.overBudgetAmount,
+                ]}
+              >
+                ${isOverBudget ? overBudgetAmount : remainingAmount}
+              </Text>
             </View>
           </View>
 
           <View style={styles.legendRow}>
             <View style={styles.legendItem}>
-              <View style={[styles.dot, { backgroundColor: "#FF6A8B" }]} />
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: isOverBudget ? "#DC2626" : "#FF6A8B" },
+                ]}
+              />
               <Text>Spent ${spentAmount}</Text>
             </View>
 
@@ -223,6 +285,15 @@ export default function RemainingBudgetScreen({ navigation }) {
               <Text>Budget ${totalBudget}</Text>
             </View>
           </View>
+
+          {isOverBudget && (
+            <View style={styles.warningBox}>
+              <Ionicons name="warning-outline" size={16} color="#DC2626" />
+              <Text style={styles.warningText}>
+                You have exceeded your monthly budget by ${overBudgetAmount}.
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.breakdownSection}>
@@ -311,6 +382,61 @@ const styles = StyleSheet.create({
 
   saveText: { color: "#fff", fontWeight: "700" },
 
+  incomeCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+  },
+
+  incomeLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+
+  incomeAmount: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#16A34A",
+  },
+
+  incomeSubtext: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+
+  savingCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+  },
+
+  savingLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+
+  savingAmount: {
+    fontSize: 28,
+    fontWeight: "800",
+  },
+
+  savingPositive: {
+    color: "#16A34A",
+  },
+
+  savingNegative: {
+    color: "#DC2626",
+  },
+
+  savingSubtext: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+
   chartCard: {
     backgroundColor: "#fff",
     borderRadius: 20,
@@ -338,6 +464,14 @@ const styles = StyleSheet.create({
 
   chartAmount: { fontSize: 24, fontWeight: "800" },
 
+  overBudgetLabel: {
+    color: "#DC2626",
+  },
+
+  overBudgetAmount: {
+    color: "#DC2626",
+  },
+
   legendRow: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -351,6 +485,26 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     marginRight: 6,
+  },
+
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 14,
+  },
+
+  warningText: {
+    marginLeft: 8,
+    color: "#B91C1C",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
   },
 
   breakdownSection: {

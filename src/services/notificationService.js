@@ -56,8 +56,8 @@ export async function scheduleMorningReminder() {
       sound: false,
     },
     trigger: {
-      hour: 9,
-      minute: 0,
+      hour: 15,
+      minute: 48,
       repeats: true,
     },
   });
@@ -71,8 +71,8 @@ export async function scheduleEveningReminder() {
       sound: false,
     },
     trigger: {
-      hour: 20,
-      minute: 30,
+      hour: 15,
+      minute: 48,
       repeats: true,
     },
   });

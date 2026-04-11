@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Image } from "react-native";
 import {
   View,
   Text,
@@ -16,14 +17,18 @@ import { getMonthlyBudget } from "../../services/budgetService";
 
 import PieChart from "../../components/PieChart";
 import ScreenWrapper from "../../components/ScreenWrapper";
+import { useInsights } from "../../context/InsightContext";
 
 const CHART_COLORS = ["#E48383", "#F2B50F", "#8E62D9", "#5AB98F", "#F1A356"];
+const INCOME_COLORS = ["#22C55E", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
 
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const { insights, fetchInsights } = useInsights();
 
   const displayName = user?.name || user?.email?.split("@")[0] || "Buddy";
 
@@ -34,6 +39,7 @@ export default function DashboardScreen({ navigation }) {
     React.useCallback(() => {
       if (user?._id) {
         loadBudget();
+        fetchInsights(user._id);
       }
     }, [user?._id])
   );
@@ -50,6 +56,9 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
+  const latestInsight =
+    insights?.find((item) => item.type === "ai_review") || null;
+
   if (loading) {
     return (
       <ScreenWrapper>
@@ -62,29 +71,53 @@ export default function DashboardScreen({ navigation }) {
 
   const totalSpent = Number(summary?.spentAmount ?? 0);
   const totalBudget = Number(summary?.totalBudget ?? 0);
-  const remaining = Number(summary?.remainingAmount ?? 0);
+  const totalIncome = Number(summary?.incomeAmount ?? 0);
+  const monthlySaving = totalIncome - totalSpent;
 
-  const breakdown =
-    summary?.categories?.map((cat, index) => ({
-      label: cat.name,
-      value: Number(cat.amount || 0),
-      color: CHART_COLORS[index % CHART_COLORS.length],
-    })) || [];
+  const isOverBudget = totalSpent > totalBudget;
+  const remaining = Math.max(totalBudget - totalSpent, 0);
+  const overBudgetAmount = isOverBudget ? totalSpent - totalBudget : 0;
 
-  const isEmpty = totalBudget === 0 && breakdown.length === 0;
+  const expenseBreakdown =
+    summary?.categories
+      ?.filter((cat) => (cat.transactionType || "expense") === "expense")
+      .map((cat, index) => ({
+        label: cat.name,
+        value: Number(cat.amount || 0),
+        color: CHART_COLORS[index % CHART_COLORS.length],
+      })) || [];
+
+  const incomeBreakdown =
+    summary?.categories
+      ?.filter((cat) => cat.transactionType === "income")
+      .map((cat, index) => ({
+        label: cat.name,
+        value: Number(cat.amount || 0),
+        color: INCOME_COLORS[index % INCOME_COLORS.length],
+      })) || [];
+
+  const isEmpty =
+    totalBudget === 0 &&
+    expenseBreakdown.length === 0 &&
+    incomeBreakdown.length === 0;
 
   const spentPercent =
     totalBudget > 0 ? Math.min((totalSpent / totalBudget) * 100, 100) : 0;
 
-  const topCategory =
-    breakdown.length > 0
-      ? [...breakdown].sort((a, b) => b.value - a.value)[0]
+  const topExpenseCategory =
+    expenseBreakdown.length > 0
+      ? [...expenseBreakdown].sort((a, b) => b.value - a.value)[0]
+      : null;
+
+  const topIncomeCategory =
+    incomeBreakdown.length > 0
+      ? [...incomeBreakdown].sort((a, b) => b.value - a.value)[0]
       : null;
 
   const budgetStatus =
     totalBudget === 0
       ? "No budget set"
-      : remaining <= 0
+      : isOverBudget
       ? "Budget exceeded"
       : spentPercent >= 90
       ? "Almost at limit"
@@ -95,7 +128,7 @@ export default function DashboardScreen({ navigation }) {
   const budgetStatusColor =
     totalBudget === 0
       ? "#6B7280"
-      : remaining <= 0
+      : isOverBudget
       ? "#DC2626"
       : spentPercent >= 90
       ? "#D97706"
@@ -103,35 +136,33 @@ export default function DashboardScreen({ navigation }) {
       ? "#F59E0B"
       : "#16A34A";
 
-  const insightText =
-    totalBudget === 0
-      ? "Set a budget to unlock smarter spending insights."
-      : breakdown.length === 0
-      ? "No expenses yet this month. You’re starting clean."
-      : topCategory
-      ? `${topCategory.label} is your highest spending category so far.`
-      : "Your monthly spending is being tracked.";
-
   return (
     <ScreenWrapper>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        <LinearGradient
-          colors={["#FFF7FA", "#FDEFF5"]}
-          style={styles.heroCard}
-        >
+        <LinearGradient colors={["#FFF7FA", "#FDEFF5"]} style={styles.heroCard}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroTextWrap}>
               <Text style={styles.title}>Hi {displayName} 💗</Text>
               <Text style={styles.subtitle}>Here’s your month at a glance</Text>
             </View>
 
-            <View style={styles.avatarBubble}>
-              <Text style={styles.avatarText}>
-                {(displayName || "B").charAt(0).toUpperCase()}
-              </Text>
+            <View style={styles.avatarWrapper}>
+              {user?.profilePicture ? (
+                <Image
+                  source={{ uri: user.profilePicture }}
+                  style={styles.avatarImage}
+                  onError={() => console.log("Image failed to load")}
+                />
+              ) : (
+                <View style={styles.avatarBubble}>
+                  <Text style={styles.avatarText}>
+                    {(displayName || "B").charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -203,33 +234,84 @@ export default function DashboardScreen({ navigation }) {
               </View>
 
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Remaining</Text>
-                <Text style={styles.summaryValue}>${remaining}</Text>
+                <Text style={styles.summaryTitle}>
+                  {isOverBudget ? "Over Budget" : "Remaining"}
+                </Text>
+                <Text
+                  style={[
+                    styles.summaryValue,
+                    isOverBudget && styles.summaryValueDanger,
+                  ]}
+                >
+                  ${isOverBudget ? overBudgetAmount : remaining}
+                </Text>
                 <Text style={styles.summarySub}>This month</Text>
               </View>
             </View>
 
-            <View style={styles.insightCard}>
-              <View style={styles.insightIconWrap}>
-                <Ionicons name="sparkles-outline" size={18} color="#DB2777" />
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryTitle}>Income</Text>
+                <Text style={[styles.summaryValue, styles.incomeValue]}>
+                  ${totalIncome}
+                </Text>
+                <Text style={styles.summarySub}>This month</Text>
               </View>
 
-              <View style={styles.insightTextWrap}>
-                <Text style={styles.insightTitle}>Quick Insight</Text>
-                <Text style={styles.insightText}>{insightText}</Text>
+              <View style={styles.summaryCardWide}>
+                <Text style={styles.summaryTitle}>Monthly Saving</Text>
+                <Text
+                  style={[
+                    styles.summaryValue,
+                    monthlySaving >= 0
+                      ? styles.incomeValue
+                      : styles.summaryValueDanger,
+                  ]}
+                >
+                  ${Math.abs(monthlySaving)}
+                </Text>
+                <Text style={styles.summarySub}>
+                  {monthlySaving >= 0
+                    ? "Income left after spending"
+                    : "Spent more than earned"}
+                </Text>
               </View>
             </View>
 
-            {topCategory && (
-              <View style={styles.topCategoryCard}>
-                <View>
-                  <Text style={styles.topCategoryLabel}>Top Spending</Text>
-                  <Text style={styles.topCategoryName}>{topCategory.label}</Text>
+            {latestInsight && (
+              <TouchableOpacity
+                style={styles.insightCard}
+                activeOpacity={0.9}
+                onPress={() => navigation.navigate("Insights")}
+              >
+                <View style={styles.insightIconWrap}>
+                  <Ionicons name="sparkles-outline" size={18} color="#DB2777" />
                 </View>
 
-                <View style={styles.topCategoryAmountWrap}>
-                  <Text style={styles.topCategoryAmount}>
-                    ${topCategory.value}
+                <View style={styles.insightTextWrap}>
+                  <Text style={styles.insightTitle} numberOfLines={1}>
+                    {latestInsight.title}
+                  </Text>
+                  <Text style={styles.insightText}>
+                    {latestInsight.message}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {(topExpenseCategory || topIncomeCategory) && (
+              <View style={styles.topCategoryCard}>
+                <View style={styles.topCategoryBlock}>
+                  <Text style={styles.topCategoryLabel}>Top Spending</Text>
+                  <Text style={[styles.topCategoryName, styles.topExpenseText]}>
+                    {topExpenseCategory ? topExpenseCategory.label : "-"}
+                  </Text>
+                </View>
+
+                <View style={styles.topCategoryBlockRight}>
+                  <Text style={styles.topCategoryLabel}>Top Income</Text>
+                  <Text style={[styles.topCategoryName, styles.topIncomeText]}>
+                    {topIncomeCategory ? topIncomeCategory.label : "-"}
                   </Text>
                 </View>
               </View>
@@ -238,7 +320,7 @@ export default function DashboardScreen({ navigation }) {
             <View style={styles.breakdownCard}>
               <Text style={styles.breakdownTitle}>Expense Breakdown</Text>
 
-              {breakdown.length === 0 ? (
+              {expenseBreakdown.length === 0 ? (
                 <View style={styles.noData}>
                   <Text style={styles.noDataText}>
                     No expenses recorded this month
@@ -247,19 +329,22 @@ export default function DashboardScreen({ navigation }) {
               ) : (
                 <>
                   <PieChart
-                    data={breakdown}
+                    data={expenseBreakdown}
                     total={totalSpent}
                     remaining={remaining}
                   />
 
                   <View style={styles.legend}>
-                    {breakdown.map((item) => {
+                    {expenseBreakdown.map((item) => {
                       const percent = totalSpent
                         ? ((item.value / totalSpent) * 100).toFixed(1)
                         : 0;
 
                       return (
-                        <View key={item.label} style={styles.legendRow}>
+                        <View
+                          key={`expense-${item.label}`}
+                          style={styles.legendRow}
+                        >
                           <View
                             style={[
                               styles.dot,
@@ -269,6 +354,59 @@ export default function DashboardScreen({ navigation }) {
                           <Text style={styles.legendLabel}>{item.label}</Text>
                           <Text style={styles.legendPercent}>{percent}%</Text>
                           <Text style={styles.legendAmount}>${item.value}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </View>
+
+            <View style={styles.breakdownCard}>
+              <Text style={styles.breakdownTitle}>Income Breakdown</Text>
+
+              {incomeBreakdown.length === 0 ? (
+                <View style={styles.noData}>
+                  <Text style={styles.noDataText}>
+                    No income recorded this month
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <PieChart
+                    data={incomeBreakdown}
+                    total={totalIncome}
+                    remaining={0}
+                    showRemaining={false}
+                  />
+
+                  <View style={styles.legend}>
+                    {incomeBreakdown.map((item) => {
+                      const percent = totalIncome
+                        ? ((item.value / totalIncome) * 100).toFixed(1)
+                        : 0;
+
+                      return (
+                        <View
+                          key={`income-${item.label}`}
+                          style={styles.legendRow}
+                        >
+                          <View
+                            style={[
+                              styles.dot,
+                              { backgroundColor: item.color },
+                            ]}
+                          />
+                          <Text style={styles.legendLabel}>{item.label}</Text>
+                          <Text style={styles.legendPercent}>{percent}%</Text>
+                          <Text
+                            style={[
+                              styles.legendAmount,
+                              styles.incomeValueText,
+                            ]}
+                          >
+                            ${item.value}
+                          </Text>
                         </View>
                       );
                     })}
@@ -359,6 +497,17 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
 
+  avatarWrapper: {
+    width: 48,
+    height: 48,
+  },
+
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+
   avatarBubble: {
     width: 48,
     height: 48,
@@ -434,6 +583,21 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 
+  summaryCardWide: {
+    flex: 2,
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#F6CDE2",
+    marginHorizontal: 4,
+    shadowColor: "#FF4FA3",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+
   summaryTitle: {
     fontSize: 13,
     color: "#6B7280",
@@ -452,6 +616,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
+  incomeValue: {
+    color: "#16A34A",
+  },
+
+  summaryValueDanger: {
+    color: "#DC2626",
+  },
+
   insightCard: {
     backgroundColor: "#fff",
     borderRadius: 22,
@@ -466,6 +638,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },
     elevation: 2,
+    overflow: "hidden",
   },
 
   insightIconWrap: {
@@ -477,10 +650,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 10,
     marginTop: 2,
+    flexShrink: 0,
   },
 
   insightTextWrap: {
     flex: 1,
+    flexShrink: 1,
   },
 
   insightTitle: {
@@ -494,6 +669,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#6B7280",
     lineHeight: 18,
+    flexShrink: 1,
   },
 
   topCategoryCard: {
@@ -513,6 +689,15 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
+  topCategoryBlock: {
+    flex: 1,
+  },
+
+  topCategoryBlockRight: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+
   topCategoryLabel: {
     fontSize: 12,
     color: "#6B7280",
@@ -522,20 +707,18 @@ const styles = StyleSheet.create({
   topCategoryName: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#111827",
   },
 
-  topCategoryAmountWrap: {
-    backgroundColor: "#FFF1F5",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+  topExpenseText: {
+    color: "#DC2626",
   },
 
-  topCategoryAmount: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#DB2777",
+  topIncomeText: {
+    color: "#16A34A",
+  },
+
+  incomeValueText: {
+    color: "#16A34A",
   },
 
   breakdownCard: {
@@ -549,6 +732,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
+    marginBottom: 16,
   },
 
   breakdownTitle: {
@@ -610,7 +794,7 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 26,
+    marginTop: 10,
   },
 
   button: {

@@ -6,8 +6,8 @@ export default function ExpensePieChart({
   data = [],
   total = 0,
   remaining = 0,
+  showRemaining = true,
 }) {
-
   const chartData = data.map((item) => ({
     name: item.label,
     population: item.value,
@@ -18,7 +18,6 @@ export default function ExpensePieChart({
 
   return (
     <View style={styles.wrapper}>
-
       {/* PIE CHART */}
       <View style={styles.chartContainer}>
         <PieChart
@@ -42,54 +41,55 @@ export default function ExpensePieChart({
         <Text style={styles.totalLabel}>Total</Text>
         <Text style={styles.totalValue}>${total}</Text>
 
-        <Text style={styles.remainingLabel}>Remaining</Text>
-        <Text style={styles.remainingValue}>${remaining}</Text>
+        {showRemaining && (
+          <>
+            <Text style={styles.remainingLabel}>Remaining</Text>
+            <Text style={styles.remainingValue}>${remaining}</Text>
+          </>
+        )}
       </View>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 12,
+  },
 
-wrapper:{
-  flexDirection:"row",
-  alignItems:"center",
-  justifyContent:"center",
-  marginVertical:12
-},
+  chartContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
 
-chartContainer:{
-  justifyContent:"center",
-  alignItems:"center",
-  marginRight:10
-},
+  summary: {
+    justifyContent: "center",
+  },
 
-summary:{
-  justifyContent:"center"
-},
+  totalLabel: {
+    fontSize: 15,
+    color: "#6B7280",
+  },
 
-totalLabel:{
-  fontSize:15,
-  color:"#6B7280"
-},
+  totalValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 12,
+  },
 
-totalValue:{
-  fontSize:28,
-  fontWeight:"700",
-  color:"#111827",
-  marginBottom:12
-},
+  remainingLabel: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
 
-remainingLabel:{
-  fontSize:14,
-  color:"#6B7280"
-},
-
-remainingValue:{
-  fontSize:22,
-  fontWeight:"700",
-  color:"#10B981"
-}
-
+  remainingValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#10B981",
+  },
 });

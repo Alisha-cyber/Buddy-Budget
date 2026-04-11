@@ -21,6 +21,9 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
   const categoryName =
     category?.name || category?.category || category || "Category";
 
+  const categoryType = category?.transactionType || "expense";
+  const isIncome = categoryType === "income";
+
   useEffect(() => {
     if (user?._id) {
       fetchTransactions({ userId: user._id });
@@ -35,6 +38,7 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
 
       return (
         tx.categoryId === categoryName &&
+        tx.transactionType === categoryType &&
         txDate.getMonth() === monthIndex &&
         txDate.getFullYear() === year
       );
@@ -61,7 +65,7 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
     });
 
     return data;
-  }, [transactions, categoryName, monthIndex, year, sortBy]);
+  }, [transactions, categoryName, categoryType, monthIndex, year, sortBy]);
 
   const totalAmount = useMemo(() => {
     return filteredTransactions.reduce(
@@ -85,19 +89,17 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
   ];
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      style={styles.card}
-      onPress={() =>
-        navigation.navigate("EditTransaction", {
-          transaction: item,
-        })
-      }
-    >
+    <TouchableOpacity activeOpacity={0.9} style={styles.card}>
       <View style={styles.rowTop}>
-        <Text style={styles.amount}>
-          ${Number(item?.amount || 0).toFixed(2)}
+        <Text
+          style={[
+            styles.amount,
+            { color: isIncome ? "#16A34A" : "#FF4F87" },
+          ]}
+        >
+          {isIncome ? "+" : "-"}${Number(item?.amount || 0).toFixed(2)}
         </Text>
+
         <Text style={styles.date}>
           {new Date(item.transactionDate).toLocaleDateString()}
         </Text>
@@ -106,11 +108,6 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
       <Text style={styles.note}>
         {item?.note?.trim() ? item.note : "No note"}
       </Text>
-
-      <View style={styles.editRow}>
-        <Ionicons name="create-outline" size={14} color="#FF4F87" />
-        <Text style={styles.editText}>Tap to edit</Text>
-      </View>
     </TouchableOpacity>
   );
 
@@ -133,12 +130,23 @@ export default function CategoryTransactionsScreen({ route, navigation }) {
       <View style={styles.container}>
         <View style={styles.headerCard}>
           <Text style={styles.headerTitle}>{categoryName}</Text>
-          <Text style={styles.headerSub}>{monthLabel}</Text>
+          <Text style={styles.headerSub}>
+            {monthLabel} • {isIncome ? "Income" : "Expense"}
+          </Text>
 
           <View style={styles.headerStats}>
             <View style={styles.statBoxLeft}>
-              <Text style={styles.statLabel}>Total Spent</Text>
-              <Text style={styles.statValue}>${totalAmount.toFixed(2)}</Text>
+              <Text style={styles.statLabel}>
+                {isIncome ? "Total Income" : "Total Spent"}
+              </Text>
+              <Text
+                style={[
+                  styles.statValue,
+                  { color: isIncome ? "#16A34A" : "#FF4F87" },
+                ]}
+              >
+                ${totalAmount.toFixed(2)}
+              </Text>
             </View>
 
             <View style={styles.statBoxRight}>
@@ -289,7 +297,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 16,
     fontWeight: "700",
-    color: "#FF4F87",
+    color: "#111827",
   },
 
   sortRow: {
@@ -347,7 +355,6 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#FF4F87",
   },
 
   date: {
@@ -358,19 +365,6 @@ const styles = StyleSheet.create({
   note: {
     fontSize: 13,
     color: "#374151",
-  },
-
-  editRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-
-  editText: {
-    marginLeft: 4,
-    fontSize: 12,
-    color: "#FF4F87",
-    fontWeight: "600",
   },
 
   emptyText: {

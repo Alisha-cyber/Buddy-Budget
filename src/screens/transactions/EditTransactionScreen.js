@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,34 +9,28 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../constants/theme";
 import { useTransactions } from "../../context/TransactionContext";
+import { useCategories } from "../../context/CategoryContext";
+import { useAuth } from "../../hooks/useAuth";
 import ScreenWrapper from "../../components/ScreenWrapper";
-
-const CATEGORY_PRESETS = [
-  "Food",
-  "Shopping",
-  "Transport",
-  "Housing",
-  "Bills",
-  "Health",
-  "Entertainment",
-  "Education",
-  "Subscriptions",
-  "Travel",
-  "Gifts",
-  "Other",
-];
 
 export default function EditTransactionScreen({ route, navigation }) {
   const { transaction } = route.params || {};
   const { updateTransaction, deleteTransaction } = useTransactions();
+  const { categories, fetchCategories, addCategory } = useCategories();
+  const { user } = useAuth();
+
+  const initialType =
+    transaction?.transactionType === "income" ? "Income" : "Expense";
 
   const [amount, setAmount] = useState(String(transaction?.amount || ""));
+  const [type, setType] = useState(initialType);
   const [selectedCategory, setSelectedCategory] = useState(
-    transaction?.categoryId || "Food"
+    transaction?.categoryId || ""
   );
   const [notes, setNotes] = useState(transaction?.note || "");
   const [loading, setLoading] = useState(false);
@@ -48,11 +42,60 @@ export default function EditTransactionScreen({ route, navigation }) {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorText, setErrorText] = useState("Something went wrong.");
 
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryLoading, setCategoryLoading] = useState(false);
+
+  useEffect(() => {
+    if (user?._id) {
+      fetchCategories({
+        userId: user._id,
+        type: type.toLowerCase(),
+      });
+    }
+  }, [user?._id, type]);
+
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0].name);
+    }
+  }, [categories]);
+
+  const visibleCategories = categories;
+
   const formattedAmount = useMemo(() => {
     const n = Number(amount);
     if (!amount || Number.isNaN(n)) return "$0.00";
     return `$${n.toFixed(2)}`;
   }, [amount]);
+
+  const handleTypeChange = (newType) => {
+    setType(newType);
+    setSelectedCategory("");
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    try {
+      setCategoryLoading(true);
+
+      const newCategory = await addCategory({
+        name: newCategoryName.trim(),
+        type: type.toLowerCase(),
+        userId: user._id,
+      });
+
+      setSelectedCategory(newCategory.name);
+      setNewCategoryName("");
+      setShowCategoryModal(false);
+    } catch (error) {
+      setErrorText(error?.response?.data?.message || "Failed to create category.");
+      setShowErrorModal(true);
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
 
   const handleUpdate = async () => {
     if (!amount || Number(amount) <= 0) {
@@ -67,6 +110,7 @@ export default function EditTransactionScreen({ route, navigation }) {
         amount: Number(amount),
         categoryId: selectedCategory,
         note: notes,
+        transactionType: type.toLowerCase(),
       });
 
       setShowUpdateSuccessModal(true);
@@ -76,10 +120,6 @@ export default function EditTransactionScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const confirmDelete = () => {
-    setShowDeleteConfirmModal(true);
   };
 
   const handleDelete = async () => {
@@ -145,15 +185,40 @@ export default function EditTransactionScreen({ route, navigation }) {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Category</Text>
+          <View style={styles.toggleWrap}>
+            {["Income", "Expense"].map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.toggleBtn, type === t && styles.toggleActive]}
+                onPress={() => handleTypeChange(t)}
+                activeOpacity={0.9}
+              >
+                <Text
+                  style={[
+                    styles.toggleText,
+                    type === t && styles.toggleTextActive,
+                  ]}
+                >
+                  {t}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Category</Text>
+            <TouchableOpacity onPress={() => setShowCategoryModal(true)}>
+              <Text style={styles.addCategoryText}>+ Add Category</Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.categoryWrap}>
-            {CATEGORY_PRESETS.map((cat) => {
-              const active = selectedCategory === cat;
+            {visibleCategories.map((cat) => {
+              const active = selectedCategory === cat.name;
               return (
                 <TouchableOpacity
-                  key={cat}
-                  onPress={() => setSelectedCategory(cat)}
+                  key={cat._id}
+                  onPress={() => setSelectedCategory(cat.name)}
                   style={[
                     styles.categoryChip,
                     active && styles.categoryChipActive,
@@ -165,7 +230,7 @@ export default function EditTransactionScreen({ route, navigation }) {
                       active && styles.categoryChipTextActive,
                     ]}
                   >
-                    {cat}
+                    {cat.name}
                   </Text>
                 </TouchableOpacity>
               );
@@ -196,12 +261,54 @@ export default function EditTransactionScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={[styles.deleteBtn, loading && { opacity: 0.6 }]}
-            onPress={confirmDelete}
+            onPress={() => setShowDeleteConfirmModal(true)}
             disabled={loading}
           >
             <Text style={styles.deleteText}>Delete Transaction</Text>
           </TouchableOpacity>
         </ScrollView>
+
+        <Modal visible={showCategoryModal} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Add Custom Category</Text>
+              <Text style={styles.modalSubtitle}>
+                Create a new {type.toLowerCase()} category.
+              </Text>
+
+              <TextInput
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                placeholder="Enter category name"
+                style={styles.modalInput}
+              />
+
+              <View style={styles.modalButtonRow}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => {
+                    setShowCategoryModal(false);
+                    setNewCategoryName("");
+                  }}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={handleCreateCategory}
+                  disabled={categoryLoading}
+                >
+                  {categoryLoading ? (
+                    <ActivityIndicator color="#253046" />
+                  ) : (
+                    <Text style={styles.modalPrimaryText}>Add</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <Modal
           visible={showInvalidModal}
@@ -421,9 +528,37 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.65)",
   },
 
+  toggleWrap: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.65)",
+    borderRadius: 18,
+    padding: 4,
+    marginBottom: 14,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  toggleActive: { backgroundColor: COLORS.primary },
+  toggleText: { fontWeight: "900", color: COLORS.muted },
+  toggleTextActive: { color: "#fff" },
+
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontWeight: "900",
     marginBottom: 8,
+  },
+  addCategoryText: {
+    fontWeight: "800",
+    color: COLORS.primary,
+    fontSize: 13,
   },
 
   categoryWrap: {
@@ -507,6 +642,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  modalInput: {
+    width: "100%",
+    backgroundColor: "#FFF7FA",
+    borderWidth: 1,
+    borderColor: "#F4D5E2",
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+
   warningIconWrap: {
     width: 64,
     height: 64,
@@ -542,6 +688,16 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  modalIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FCE7F3",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 14,
@@ -598,6 +754,15 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#B91C1C",
     fontSize: 15,
+  },
+
+  modalPrimaryBtn: {
+    flex: 1,
+    marginLeft: 8,
+    backgroundColor: "#F8C9DA",
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: "center",
   },
 
   modalPrimaryBtnSingle: {
